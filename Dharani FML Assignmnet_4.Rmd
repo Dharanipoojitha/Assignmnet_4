@@ -1,0 +1,156 @@
+---
+title: "Assignment 4"
+author: "Dharani"
+output:
+  html_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#CSV file and Required Packages are loaded 
+I'll use the k-means clustering approach to do a non-hierarchical cluster analysis for this project.
+
+To extract meaningful information from the data, the goal is to cluster the data into homogeneous groups. The real dataset and the required software should be loaded first. It contains information on 21 pharmaceutical companies.
+
+```{r results='hide'}
+#packages are loaded 
+library(caret)
+library(factoextra)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(cowplot)
+```
+
+#Reading the dataset
+```{r}
+library(readr)
+Pharmaceutics_data <- read.csv("C:/Users/DHARANI/Downloads/Pharmaceuticals.csv")
+view(Pharmaceutics_data)
+head(Pharmaceutics_data)
+str(Pharmaceutics_data)
+summary(Pharmaceutics_data)
+dim(Pharmaceutics_data)
+colMeans(is.na(Pharmaceutics_data))
+
+row.names(Pharmaceutics_data) <- Pharmaceutics_data[,2]
+Pharmaceutics_data <- Pharmaceutics_data[,-2]
+```
+#a)Use only the numerical variables (1 to 9) to cluster the 21 firms. Justify the various choices made in conducting the cluster analysis, such as weights for different variables, the specific clustering algorithm(s) used, the number of clusters formed, and so on.
+
+We focus on a subset of the original dataset that only includes numerical variables for the first part of the assignment.
+```{r}
+#with the exception of "Symbol" and the last 3 non-numerical variables
+Pharmaceutics.Que1 <- Pharmaceutics_data[,-c(1,11:13)]
+```
+
+#Normalizing and Clustering the data
+
+I will compute the distance between every observation. Since the default distance measure is the scale-sensitive Euclidean distance metric, data must first be modified.
+
+```{r}
+#normalizing data
+norm.Pharmaceutics.Que1 <- scale(Pharmaceutics.Que1)
+#measuring and plotting distance
+dist <- get_dist(norm.Pharmaceutics.Que1)
+fviz_dist(dist)
+```
+The color intensity variation with distance is shown on the graph. Since the diagonal reflects the distance between two observations, it has a value of zero as we would expect.
+
+#Finding the optimal K value
+
+When there are no outside effects, the Elbow chart and the Silhouette Method are two of the finest ways to figure out how many clusters the k-means model has. The former shows how cluster heterogeneity decreases with an increase of clusters. The latter evaluates the degree of correspondence between an object's cluster and other clusters.
+
+```{r}
+#Using elbow chart and silhouette method
+WSS <- fviz_nbclust(norm.Pharmaceutics.Que1, kmeans, method = "wss")
+Silho <- fviz_nbclust(norm.Pharmaceutics.Que1, kmeans, method = "silhouette")
+plot_grid(WSS, Silho)
+
+```
+#Plotted charts demonstrate that the elbow approach yields a line at k=2, whereas the silhouette method yields k=5
+
+#Using the k-means method with k=5.
+```{r}
+#using k-means with k=5 for making clusters
+set.seed(123)
+KMe.Pharmaceutics.Opt <- kmeans(norm.Pharmaceutics.Que1, centers = 5, nstart = 50)
+KMe.Pharmaceutics.Opt$centers
+KMe.Pharmaceutics.Opt$size
+KMe.Pharmaceutics.Opt$withinss
+fviz_cluster(KMe.Pharmaceutics.Opt, data = norm.Pharmaceutics.Que1)
+```
+
+We can define the five clusters based on how far off they are from the cores using the data. While Cluster n.2 has a high beta and Cluster n.5 does have a low asset turnover, Cluster n.4 has a high market capital.
+
+We can also determine the size of each cluster. There are more firms in Cluste.1 than in Cluste.3, which only has two.
+
+Data dispersion may be inferred from the within-cluster sum of squared distances, which shows that cluste.1 (21.9) is less homogeneous than cluste.3 (2.8).
+
+We can see the five categories that the data has been divided into by looking at the output of the algorithm.
+
+#b)Interpret the clusters with respect to the numerical variables used in forming the clusters. 
+We were afraid about losing some of the characteristics in the data with only two clusters, so I decided to run the model again with only three clusters to better understand the cluster analysis.
+
+```{r}
+#using k-means algorithm with k=3 for making clusters
+set.seed(123)
+KMe.Pharmaceutics <- kmeans(norm.Pharmaceutics.Que1, centers = 3, nstart = 50)
+KMe.Pharmaceutics$centers
+KMe.Pharmaceutics$size
+KMe.Pharmaceutics$withinss
+fviz_cluster(KMe.Pharmaceutics, data = norm.Pharmaceutics.Que1)
+```
+
+
+This makes it easier to organize and identify the analysis's clusters. There are currently 4 data points in the cluster.1, cluste.2 has 11 data points, cluste.3 contains 6 data points.
+
+```{r echo=FALSE}
+#The graphic plot of data points which are grouped in clusters
+Centroid <- data.frame(KMe.Pharmaceutics$centers) %>% 
+  rowid_to_column() %>% 
+  gather('Columns', 'Centers', -1)
+ggplot(Centroid, aes(x = Columns, y = Centers, color = as.factor(rowid))) + 
+  geom_line(aes(group = as.factor(rowid))) + geom_point()
+```
+
+The second picture shows that the firms in cluste.1 have a high Price/Earnings ratio and a low Net Profit Margin, while the companies in cluste.2 have a high Leverage and Estimated Revenue Growth along with a low Asset Turnover and Return on Asset (ROA). Cluste.3 did not distinguish itself in any of the criteria we examined.
+
+#c)Is there a pattern in the clusters with respect to the numerical variables (10 to 12)? (those not used in forming the clusters)
+
+Take into consideration the last three category variables: Stock Exchange, Location, and Median Recommendation.
+I decide to use bar charts to visually represent the distribution of enterprises classified by clusters so that I may look for patterns in the data.
+
+```{r}
+#data set partitioning for last 3 variables
+Pharmaceutics.Que3 <-  Pharmaceutics_data %>% select(c(11,12,13)) %>% 
+    mutate(Cluster = KMe.Pharmaceutics$cluster)
+```
+
+```{r}
+#cluster plots
+Med_Recom <- ggplot(Pharmaceutics.Que3, mapping = aes(factor(Cluster), fill=Median_Recommendation)) +
+  geom_bar(position = 'dodge') +
+  labs(x='Clusters', y='Frequence')
+Locat <- ggplot(Pharmaceutics.Que3, mapping = aes(factor(Cluster), fill=Location)) +
+  geom_bar(position = 'dodge') + 
+  labs(x='Clusters', y='Frequence')
+Excha <- ggplot(Pharmaceutics.Que3, mapping = aes(factor(Cluster), fill=Exchange)) +
+  geom_bar(position = 'dodge') + 
+  labs(x='Clusters', y='Frequence')
+plot_grid(Med_Recom, Locat, Excha)
+```
+
+It is evident from the graph that the bulk of the firms in cluste.3 are American-based, and all of them have a spread recommendation to hold their shares. The New York Stock Exchange is where they are all exchanged. We choose "Moderate Buy" shares in cluste.2, and we only include the stocks of AMEX and NASDAQ, two firms whose stocks are listed on other exchanges or indexes. The four companies are spread across four distinct nations, as seen in Cluste.1, and the NYSE is where their equities are exchanged.
+
+#d)Providing an appropriate name for each cluster using any or all of the variables in the dataset. 
+
+As a result, after gathering all of the dataset's data, we are able to separate the 21 pharmaceutical businesses into 3 different categories.
+
+1) Cluste.1 is classified as "overvalued international firms" because of its high price/earnings ratio, poor net profit margin, NYSE trading, and international location. These companies raise cash on the biggest stock exchange in the world (NYSE) and conduct business across many continents. They are both valued highly on the financial markets, more than their current earnings levels can justify. They need to invest and boost earnings to satisfy investors if they don't want their stock price to plummet.
+
+2) Due to the following factors, Cluste.2 is classified as a "growing and leveraged firm": "Moderate buy" assessments, low asset turnover and ROA, high leverage, and projected rise in sales. Investors that are prepared to wait for future development seem to place a high value on them despite their current low profitability and massive debt.
+
+3) Because Cluste.3 is headquartered in the US, is listed on the NYSE, has a "Hold" rating, it may be considered a "mature US firm".
+
